@@ -2,12 +2,16 @@ import pandas as pd
 import numpy as np
 import pywt
 from statsmodels.robust import mad
+from pprint import pprint
+
+SEED = 42
 
 class PreProcessor():
 	def __init__(self):
 		self.data = {}
 		self.targets = {}
 		self.is_processed = {}
+		np.random.seed(SEED)
 
 	def add_dataframe(self, name, dataframe):
 		self.data[name] = dataframe
@@ -29,7 +33,7 @@ class PreProcessor():
 
 	def preproccess(self, name):
 		if not self.is_processed[name]:
-			data = self.data[name].dropna()
+			data = self.data[name]
 			self.targets[name] = data['close'].shift(-1)[:-1]
 
 			as_tensor = data.iloc[:-2, 1:].values
