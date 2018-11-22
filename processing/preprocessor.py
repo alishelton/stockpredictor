@@ -30,7 +30,7 @@ class PreProcessor():
 	def preproccess(self, name):
 		if not self.is_processed[name]:
 			data = self.data[name].dropna()
-			self.targets[name] = data['close'].shift(-1)[:-1]
+			self.targets[name] = data['close'].shift(-1)[:-1].tolist()
 
 			as_tensor = data.iloc[:-2, 1:].values
 			transformed = pywt.wavedec(as_tensor, wavelet='haar', level=2, axis=0)

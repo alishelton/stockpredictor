@@ -5,6 +5,7 @@ import torch.nn.functional as F
 import torch.optim as optim
 from torch.autograd import Variable
 from torch.utils.data import DataLoader
+from processing.stockdataset import StockDataset
 
 import numpy as np
 import math
@@ -82,12 +83,12 @@ class StackedDAE(nn.Module):
                 else:
                     dae.fit(trloader, valoader, lr=lr, batch_size=batch_size, num_epochs=num_epochs, corrupt=corrupt, \
                         loss_type="mse", device=device)
-            data_x = dae.encodeBatch(trloader)
-            valid_x = dae.encodeBatch(valoader)
-            trainset = Dataset(data_x, data_x)
+            data_x = dae.encodeBatch(trloader, device)
+            valid_x = dae.encodeBatch(valoader, device)
+            trainset = StockDataset(data_x, data_x)
             trloader = torch.utils.data.DataLoader(
                 trainset, batch_size=batch_size, shuffle=False, num_workers=2)
-            validset = Dataset(valid_x, valid_x)
+            validset = StockDataset(valid_x, valid_x)
             valoader = torch.utils.data.DataLoader(
                 validset, batch_size=1000, shuffle=False, num_workers=2)
             daeLayers.append(dae)
@@ -139,7 +140,7 @@ class StackedDAE(nn.Module):
         total_loss = 0.0
         total_num = 0
         for batch_idx, (inputs, _) in enumerate(validloader):
-            inputs = inputs.view(inputs.size(0), -1).float().to(device)
+            inputs = inputs.float().to(device)
             inputs = Variable(inputs)
             z, outputs = self.forward(inputs)
 
@@ -154,7 +155,7 @@ class StackedDAE(nn.Module):
             # train 1 epoch
             train_loss = 0.0
             for batch_idx, (inputs, _) in enumerate(trainloader):
-                inputs = inputs.view(inputs.size(0), -1).float().to(device)
+                inputs = inputs.float().to(device)
                 inputs_corr = masking_noise(inputs, corrupt).to(device)
                 optimizer.zero_grad()
                 inputs = Variable(inputs)
@@ -169,7 +170,7 @@ class StackedDAE(nn.Module):
             # validate
             valid_loss = 0.0
             for batch_idx, (inputs, _) in enumerate(validloader):
-                inputs = inputs.view(inputs.size(0), -1).float().to(device)
+                inputs = inputs.float().to(device)
                 inputs = Variable(inputs)
                 z, outputs = self.forward(inputs)
 

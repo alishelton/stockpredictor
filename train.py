@@ -1,5 +1,4 @@
 import torch
-import time
 import os
 import json
 import torch.nn as nn
@@ -15,17 +14,17 @@ base_file_path = '/Users/alishelton/Desktop/deeplearning/stocks/'
 data_file_path = os.path.join(base_file_path, 'stock_data')
 model_file_path = os.path.join(base_file_path, 'models')
 
-TRAIN_AUTO = True
+TRAIN_AUTO = False
 
 data_params = {
-	'batch_size': 32,
+	'batch_size': 30,
 	'shuffle': True,
 	'num_workers': 4
 }
 
 model_params = {
-	'num_epochs': 1000,
-	'lr': 0.005
+	'num_epochs': 5000,
+	'lr': 0.05
 }
 
 if __name__ == '__main__':
@@ -39,10 +38,13 @@ if __name__ == '__main__':
 	preprocessor.preprocess_all()
 	data, targets = preprocessor.get_data() # gets all data and targets
 
+	# maybe fix how this works, we need some better way of processing the data at the encoder level
+	# maybe even only form this specific data if train auto encoder is true!
 	dataset = StockDataset(data['FB'], targets['FB'])
 
 	train_size = int(0.7 * len(dataset))
-	train_data, test_data = Subset(dataset, [i for i in range(train_size)]), Subset(dataset, [i for i in range(train_size, len(dataset))])
+	train_data, test_data = Subset(dataset, [i for i in range(train_size)]), \
+		Subset(dataset, [i for i in range(train_size, len(dataset))])
 
 	trainloader = DataLoader(train_data, **data_params)
 	validloader = DataLoader(test_data, **data_params)
@@ -52,9 +54,9 @@ if __name__ == '__main__':
 	device = torch.device('cuda:0' if torch.cuda.is_available() else 'cpu')
 
 	# Build and train autoencoder model
-	input_size, output_size = 11, 7
-	auto_model = StackedDAE(input_dim=input_size, z_dim=output_size, encodeLayer=[output_size] * 3,\
-	 decodeLayer=[output_size], dropout=0.2)
+	input_size, z_size = 11, 5
+	auto_model = StackedDAE(input_dim=input_size, z_dim=z_size, encodeLayer=[9], \
+	 decodeLayer=[9], dropout=0.2)
 	if TRAIN_AUTO:
 		auto_model.pretrain(trainloader, validloader, device, **model_params)
 		auto_model.save_model(os.path.join(model_file_path, 'stackedDAEModel'))
@@ -62,16 +64,23 @@ if __name__ == '__main__':
 		auto_model.load_model(os.path.join(model_file_path, 'stackedDAEModel'))
 
 	# # Auto encode the data
-	# auto_encoded_train = auto_model() # is this a get?
-	# auto_encoded_val = auto_model() # is this a get?
+	train_shift, val_shift = -4, -2
+	train_data, test_data = torch.tensor(data['FB'][:train_size+train_shift]).float(), \
+		torch.tensor(data['FB'][train_size+train_shift:val_shift]).float()
+	train_targets, test_targets = torch.tensor(targets['FB'][:train_size-4]).float(), \
+		torch.tensor(targets['FB'][train_size+train_shift:val_shift]).float()
+	
+	auto_encoded_train = auto_model(train_data)[0].detach().numpy()
+	auto_encoded_val = auto_model(test_data)[0].detach().numpy()
 
-	# # are we sure that we are getting back dataloaders? maybe just call it on the original
-	# # data, then pass that into a new loader
-
-	# # Build lstm model
-	# lstm_model = LSTMModel(10, 1, dropout=0.4)
-	# lstm_model.fit(auto_encoded_train, auto_encoded_val, device, **model_params)
-	# lstm_model.save_model(os.path.join(model_file_path, 'LSTMModel'))
+	post_auto_trainloader = DataLoader(StockDataset(train_data, train_targets), **data_params)
+	post_auto_validloader = DataLoader(StockDataset(test_data, test_targets), **data_params)
+	
+	# Build lstm model
+	input_size, hidden_size, num_layers, window_size, dropout = 11, 11, 5, 10, 0.2
+	lstm_model = LSTMModel(input_size, hidden_size, num_layers, window_size, dropout, device)
+	lstm_model.fit(post_auto_trainloader, post_auto_validloader, **model_params)
+	lstm_model.save_model(os.path.join(model_file_path, 'LSTMModel'))
 
 
 

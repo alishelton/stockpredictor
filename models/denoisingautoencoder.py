@@ -2,6 +2,7 @@ import torch
 import torch.nn as nn
 from torch.nn import Parameter
 import torch.nn.functional as F
+from torch.autograd import Variable
 import torch.optim as optim
 from utils import masking_noise
 import numpy as np
@@ -60,7 +61,7 @@ class DenoisingAutoencoder(nn.Module):
         if not binary:
             return F.linear(x, self.deweight, self.vbias)
         else:
-            return F.sigmoid(F.linear(x, self.deweight, self.vbias))
+            return torch.sigmoid(F.linear(x, self.deweight, self.vbias))
 
     def fit(self, trainloader, validloader, device, lr=0.001, batch_size=128, num_epochs=10, corrupt=0.3,
         loss_type="mse"):
@@ -80,7 +81,7 @@ class DenoisingAutoencoder(nn.Module):
         total_loss = 0.0
         total_num = 0
         for batch_idx, (inputs, _) in enumerate(validloader):
-            inputs = inputs.view(inputs.size(0), -1).float().to(device)
+            inputs = inputs.float().to(device)
             inputs = Variable(inputs)
             hidden = self.encode(inputs, train=False)
             if loss_type=="cross-entropy":
@@ -99,7 +100,7 @@ class DenoisingAutoencoder(nn.Module):
             # train 1 epoch
             train_loss = 0.0
             for batch_idx, (inputs, _) in enumerate(trainloader):
-                inputs = inputs.view(inputs.size(0), -1).float().to(device)
+                inputs = inputs.float().to(device)
                 inputs_corr = masking_noise(inputs, corrupt).to(device)
 
                 optimizer.zero_grad()
@@ -119,7 +120,7 @@ class DenoisingAutoencoder(nn.Module):
             # validate
             valid_loss = 0.0
             for batch_idx, (inputs, _) in enumerate(validloader):
-                inputs = inputs.view(inputs.size(0), -1).float().to(device)
+                inputs = inputs.float().to(device)
                 inputs = Variable(inputs)
                 hidden = self.encode(inputs, train=False)
                 if loss_type=="cross-entropy":
